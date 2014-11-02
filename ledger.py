@@ -7,6 +7,8 @@ import tornado.ioloop
 import tornado.options
 import tornado.web
 
+import config
+
 from tornado.options import define, options
 define('port', default=8000, help='run on the given port', type=int)
 
@@ -16,16 +18,40 @@ class IndexHandler(tornado.web.RequestHandler):
 
 class GroupPageHandler(tornado.web.RequestHandler):
     def get(self, g):
-        r_server = redis.Redis(host="localhost")
+        r_server = redis.Redis(host=config.DB_HOST)
 
-        purchases = []
-
-        for purchase in r_server.keys('purchase:*'):
-            if r_server.hget(purchase, 'group')[6:] == g:
-                purchases.append(r_server.hgetall(purchase))
+        group_name = r_server.hget('group:' + g, 'name')
+        group_members = r_server.smembers('group-members:' + g)
 
         # render the page
-        self.render('read.html', purchases=purchases)
+        self.render('group.html', group_name=group_name, group_members=group_members)
+
+class PersonPageHandler(tornado.web.RequestHandler):
+    def get(self, p):
+        r_server = redis.Redis(host=config.DB_HOST)
+
+        person_name = r_server.hget('person:' + p, 'name')
+
+        # render the page
+        self.render('person.html', person_name=person_name)
+
+class PurchasePageHandler(tornado.web.RequestHandler):
+    def get(self, p):
+        r_server = redis.Redis(host=config.DB_HOST)
+
+        print p
+
+        purchase = r_server.hgetall('purchase:' + p)
+
+        purchase_person = purchase['person']
+        purchase_amount = purchase['amount']
+        purchase_group = purchase['group']
+        purchase_ts = purchase['ts'][0]
+        purchase_description = purchase['description']
+
+        # render the page
+        self.render('purchase.html', purchase_person=purchase_person, purchase_amount=purchase_amount,
+                    purchase_group=purchase_group, purchase_ts=purchase_ts, purchase_description=purchase_description)
 
 class WritePageHandler(tornado.web.RequestHandler):
     def post(self):
@@ -36,7 +62,7 @@ class WritePageHandler(tornado.web.RequestHandler):
         amount = self.get_argument('amount')
 
         # save the data to Redis
-        r_server = redis.Redis(host="localhost")
+        r_server = redis.Redis(host=config.DB_HOST)
 
         # person - belong to 1 to many groups
         person_id = 'person:' + person.lower().replace(' ', '-')
@@ -85,7 +111,9 @@ if __name__ == "__main__":
     tornado.options.parse_command_line()
     app = tornado.web.Application(handlers=[(r'/', IndexHandler),
                                             (r'/write', WritePageHandler),
-                                            (r'/group/(\w+)', GroupPageHandler)],
+                                            (r'/group/(\w+)', GroupPageHandler),
+                                            (r'/person/(\w+)', PersonPageHandler),
+                                            (r'/purchase/[\-,(\w+)]', PurchasePageHandler)],
                                   template_path=os.path.join(os.path.dirname(__file__), 'templates'))
     http_server = tornado.httpserver.HTTPServer(app)
     http_server.listen(options.port)

@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ledger | Group {{group_name}}</title>
+</head>
+<body>
+    <h1>Group {{group_name}} has members...</h1>
+    <ul>
+        {% for member in group_members %}
+        <li>
+            {{member}}
+        </li>
+        {% end %}
+    </ul>
+</body>
+</html>

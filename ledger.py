@@ -14,6 +14,19 @@ class IndexHandler(tornado.web.RequestHandler):
     def get(self):
         self.render('index.html')
 
+class GroupPageHandler(tornado.web.RequestHandler):
+    def get(self, g):
+        r_server = redis.Redis(host="localhost")
+
+        purchases = []
+
+        for purchase in r_server.keys('purchase:*'):
+            if r_server.hget(purchase, 'group')[6:] == g:
+                purchases.append(r_server.hgetall(purchase))
+
+        # render the page
+        self.render('read.html', purchases=purchases)
+
 class WritePageHandler(tornado.web.RequestHandler):
     def post(self):
         # get the input data
@@ -70,7 +83,9 @@ class WritePageHandler(tornado.web.RequestHandler):
 
 if __name__ == "__main__":
     tornado.options.parse_command_line()
-    app = tornado.web.Application(handlers=[(r'/', IndexHandler), (r'/write', WritePageHandler)],
+    app = tornado.web.Application(handlers=[(r'/', IndexHandler),
+                                            (r'/write', WritePageHandler),
+                                            (r'/group/(\w+)', GroupPageHandler)],
                                   template_path=os.path.join(os.path.dirname(__file__), 'templates'))
     http_server = tornado.httpserver.HTTPServer(app)
     http_server.listen(options.port)
